@@ -6,6 +6,21 @@ import (
 	"math/big"
 )
 
+func Encrypt(shared_secret []byte, msg []byte) ([]byte, error) {
+	shared_secret_int := new(big.Int).SetBytes(shared_secret)
+	msg_int := new(big.Int).SetBytes(msg)
+	if IsZero(msg_int) {
+		return nil, errors.New("message can not be zero")
+	}
+	return shared_secret_int.Mul(shared_secret_int, msg_int).Bytes(), nil
+}
+
+func Decrypt(shared_secret []byte, cyphertext []byte) ([]byte, error) {
+	cyphertext_int := new(big.Int).SetBytes(cyphertext)
+	shared_secret_int := new(big.Int).SetBytes(shared_secret)
+	return shared_secret_int.Div(cyphertext_int, shared_secret_int).Bytes(), nil
+}
+
 // randBigInt generates a random big.Int of the given bit size
 func randBigInt(bits int) (*big.Int, error) {
 	bigInt := new(big.Int)
@@ -31,19 +46,4 @@ func Generate_one_bytes() []byte {
 }
 func IsZero(bigInt *big.Int) bool {
 	return bigInt.Sign() == 0
-}
-
-func Encrypt(shared_secret []byte, msg []byte) ([]byte, error) {
-	shared_secret_int := new(big.Int).SetBytes(shared_secret)
-	msg_int := new(big.Int).SetBytes(msg)
-	if IsZero(msg_int) {
-		return nil, errors.New("message can not be zero")
-	}
-	return shared_secret_int.Mul(shared_secret_int, msg_int).Bytes(), nil
-}
-
-func Decrypt(shared_secret []byte, cyphertext []byte) ([]byte, error) {
-	cyphertext_int := new(big.Int).SetBytes(cyphertext)
-	shared_secret_int := new(big.Int).SetBytes(shared_secret)
-	return shared_secret_int.Div(cyphertext_int, shared_secret_int).Bytes(), nil
 }
