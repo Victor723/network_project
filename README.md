@@ -1,5 +1,5 @@
 To build the project
-go build main.go
+`go build main.go`
 
 To run the project
-./main
+`./main`
