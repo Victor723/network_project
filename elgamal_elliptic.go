@@ -3,35 +3,12 @@ package main
 import (
 	"crypto/ecdh"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 )
-
-// type PublicKey struct {
-// 	Curve elliptic.Curve
-// 	X, Y  *big.Int
-// }
-
-// type PrivateKey struct {
-// 	PublicKey
-// 	D *big.Int
-// }
-
-// type CipherText struct {
-// 	X1, Y1, X2, Y2 *big.Int
-// }
-
-// // func GenerateKey(curve elliptic.Curve) (*PrivateKey, error) {
-// // 	priv, x, y, err := elliptic.GenerateKey(curve, rand.Reader)
-// // 	if err != nil {
-// // 		return nil, err
-// // 	}
-// // 	return &PrivateKey{
-// // 		PublicKey: PublicKey{Curve: curve, X: x, Y: y},
-// // 		D:         new(big.Int).SetBytes(priv),
-// // 	}, nil
-// // }
 
 func isZero(bigInt *big.Int) bool {
 	return bigInt.Sign() == 0
@@ -72,6 +49,95 @@ func generate_msg_bytes() []byte {
 	return randomBigInt.Bytes()
 }
 
+func generate_one_bytes() []byte {
+	return big.NewInt(1).Bytes()
+}
+
+// ///////////////////////////////// framework
+
+type Auditor struct {
+	FileName string
+}
+
+type Client struct {
+	PrivateKey ecdh.PrivateKey
+}
+
+// NewAuditor creates a new Auditor instance
+func NewAuditor(fileName string) *Auditor {
+	return &Auditor{FileName: fileName}
+}
+
+func (a *Auditor) InitializeDatabase() error {
+	// Check if the file already exists.
+	_, err := os.Stat(a.FileName)
+
+	if err == nil {
+		// File exists, clear its contents
+		err = os.Truncate(a.FileName, 0)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Cleared contents of %s\n", a.FileName)
+	} else if os.IsNotExist(err) {
+		// File doesn't exist, create it.
+		file, err := os.Create(a.FileName)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		fmt.Printf("Created %s\n", a.FileName)
+	} else {
+		return err
+	}
+
+	return nil
+}
+
+func ReadDatabase(fileName string) ([]byte, error) {
+	data, err := os.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func AppendCiphertextToDatabase(fileName string, ciphertexts []*CipherText) error {
+	// Read the existing data from the database file
+	existingData, err := ReadDatabase(fileName)
+	if err != nil {
+		return err
+	}
+
+	// Unmarshal the existing data into a slice of CipherText
+	var databaseCiphertexts []*CipherText
+	if len(existingData) > 0 {
+		err = json.Unmarshal(existingData, &databaseCiphertexts)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Append the new ciphertexts to the existing array
+	databaseCiphertexts = append(databaseCiphertexts, ciphertexts...)
+
+	// Marshal the updated array back to a byte slice
+	updatedData, err := json.Marshal(databaseCiphertexts)
+	if err != nil {
+		return err
+	}
+
+	// Write the updated data to the file
+	err = os.WriteFile(fileName, updatedData, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/////////////////////////////
+
 func main() {
 	curve := ecdh.P256()
 
@@ -93,7 +159,8 @@ func main() {
 		panic(err)
 	}
 	///generate a message, this represent a web certificate
-	report_msg := generate_msg_bytes()
+	report_msg := generate_one_bytes()
+	// report_msg := generate_msg_bytes()
 	/// obtain the shared secrete
 	shared_key_cli, err := priv2.ECDH(pub1)
 	if err != nil {
@@ -115,16 +182,19 @@ func main() {
 	}
 	plaintext, err := Decrypt(shared_key1, cyphertext)
 
-	for _, b := range report_msg {
+	for _, b := range cyphertext {
 		fmt.Printf("%x ", b)
 	}
 
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
-	for _, b := range plaintext {
-		fmt.Printf("%x ", b)
-	}
+	// fmt.Println()
+	// for _, b := range report_msg {
+	// 	fmt.Printf("%x ", b)
+	// }
+
+	// fmt.Println()
+	// for _, b := range plaintext {
+	// 	fmt.Printf("%x ", b)
+	// }
 	fmt.Println()
 	if string(report_msg) == string(plaintext) {
 		fmt.Println("Decryption successful!")
