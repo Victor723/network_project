@@ -6,6 +6,8 @@ import (
 	"math/big"
 )
 
+const web_cert_len = 2048
+
 func Encrypt(shared_secret []byte, msg []byte) ([]byte, error) {
 	shared_secret_int := new(big.Int).SetBytes(shared_secret)
 	msg_int := new(big.Int).SetBytes(msg)
@@ -34,7 +36,7 @@ func randBigInt(bits int) (*big.Int, error) {
 }
 
 func Generate_msg_bytes() []byte {
-	randomBigInt, err := randBigInt(2048)
+	randomBigInt, err := randBigInt(web_cert_len)
 	if err != nil {
 		panic(err)
 	}
