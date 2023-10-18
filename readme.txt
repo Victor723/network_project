@@ -1,14 +1,6 @@
-package main
-
-import (
-	"crypto/ecdh"
-	"crypto/rand"
-	"fmt"
-	"web_cert_reporting/elgamal"
-)
-
-func main() {
-	curve := ecdh.P256()
+example elgamal
+    
+    curve := ecdh.P256()
 
 	/// auditer action
 	// Generate key for the auditer
@@ -70,5 +62,3 @@ func main() {
 	} else {
 		fmt.Println("Decryption failed!")
 	}
-
-}
