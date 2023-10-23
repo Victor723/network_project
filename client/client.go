@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"web_cert_reporting/auditor"
@@ -68,9 +69,9 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 	if err != nil {
 		return err
 	}
-	var database *auditor.Database
+	var database auditor.Database
 
-	// Unmarshal the byte slice into the 'person' variable
+	// Unmarshal the byte slice into variable
 	err = json.Unmarshal(data, &database)
 	if err != nil {
 		log.Fatalf("Error unmarshaling the JSON: %v", err)
@@ -79,15 +80,30 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 	if len(database.Shufflers_info) == 0 {
 		//  TODO more robust checks needed
 		// first shuffle
-		// randomize
+		// randomize the entries
+		fmt.Println("shuffling")
+		ShuffleEntries(database.Entries)
 	} else {
 
 	}
+
+	// // Marshal the updated array back to a byte slice
+	// updatedData, err := json.Marshal(database)
+	// // fmt.Println(updatedData)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // Write the updated data to the file
+	// err = os.WriteFile(certauditor.FileName, updatedData, 0644)
+	// if err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
 // Shuffle securely shuffles the order of the input slice.
-func Shuffle(slice []*auditor.ReportingEntry) {
+func ShuffleEntries(slice []*auditor.ReportingEntry) {
 	n := len(slice)
 	for i := n - 1; i > 0; i-- {
 		j := randomInt(i + 1)                   // Get a secure random index from 0 to i
