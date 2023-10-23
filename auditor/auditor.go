@@ -24,6 +24,17 @@ type ReportingEntry struct {
 	Shufflers        [][]byte
 }
 
+type Database struct {
+	Entries        []ReportingEntry
+	Shufflers_info []ShuffleRecords
+}
+
+type ShuffleRecords struct {
+	ID int
+	g  []byte
+	h  []byte
+}
+
 type Auditor struct {
 	FileName string
 	Curve    ecdh.Curve
@@ -67,7 +78,7 @@ func ReadDatabase(certauditor *Auditor) ([]byte, error) {
 	}
 	return data, nil
 }
-func AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEntry) error {
+func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEntry) error {
 	// Read the existing data from the database file
 	existingData, err := ReadDatabase(certauditor)
 	if err != nil {
@@ -75,19 +86,27 @@ func AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEntry) error {
 	}
 
 	// Unmarshal the existing data into a slice of CipherText
-	var databaseCiphertexts []*ReportingEntry
+	var databaseCiphertexts Database
 	if len(existingData) > 0 {
 		err = json.Unmarshal(existingData, &databaseCiphertexts)
 		if err != nil {
 			return err
 		}
+	} else {
+		databaseCiphertexts = Database{
+			Entries:        []ReportingEntry{},
+			Shufflers_info: []ShuffleRecords{},
+		}
 	}
 
 	// Append the new ciphertexts to the existing array
-	databaseCiphertexts = append(databaseCiphertexts, entry)
+	databaseCiphertexts.Entries = append(databaseCiphertexts.Entries, *entry)
+	// fmt.Println(databaseCiphertexts)
+	// fmt.Println(entry)
 
 	// Marshal the updated array back to a byte slice
 	updatedData, err := json.Marshal(databaseCiphertexts)
+	// fmt.Println(updatedData)
 	if err != nil {
 		return err
 	}

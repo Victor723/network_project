@@ -2,6 +2,8 @@ package client
 
 import (
 	"crypto/rand"
+	"encoding/json"
+	"log"
 	"os"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/elgamal"
@@ -13,7 +15,7 @@ func NewClient(certauditor *auditor.Auditor, id int) *auditor.Client {
 	if err != nil {
 		panic(err)
 	}
-	return &auditor.Client{ID: id, PrivateKey: k, ReportingValue: elgamal.Generate_msg_bytes(), Curve: certauditor.Curve}
+	return &auditor.Client{ID: id, PrivateKey: k, ReportingValue: elgamal.Generate_msg_bytes(certauditor.Curve), Curve: certauditor.Curve}
 }
 
 func ReadDatabase(certauditor *auditor.Auditor) ([]byte, error) {
@@ -29,7 +31,7 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	h_r_i0, err := ri0.ECDH(client.PrivateKey.PublicKey())
+	h_r_i0, err := elgamal.ECDH_returnPoint(ri0, client.PrivateKey.PublicKey())
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +47,7 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	h_r_i1, err := ri1.ECDH(client.PrivateKey.PublicKey())
+	h_r_i1, err := elgamal.ECDH_returnPoint(ri1, client.PrivateKey.PublicKey())
 	if err != nil {
 		return nil, err
 	}
@@ -57,4 +59,25 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 		G_ri1:            g_r_i1,
 		Shufflers:        [][]byte{},
 	}, nil
+}
+
+func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client) error {
+	data, err := ReadDatabase(certauditor)
+	if err != nil {
+		return err
+	}
+	var database []*auditor.ReportingEntry
+
+	// Unmarshal the byte slice into the 'person' variable
+	err = json.Unmarshal(data, &database)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return err
+	}
+	if len(database[0].Shufflers) == 0 {
+		// first shuffle
+	} else {
+
+	}
+	return nil
 }
