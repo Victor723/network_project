@@ -14,7 +14,7 @@ func main() {
 	numClients := 5
 	CertAuditor := auditor.NewAuditor(database_name, curve)
 	CertAuditor.InitializeDatabase()
-
+	fmt.Println("Auditer Initialized, Enter reporting phase")
 	/// init client and starting the reporting phase
 	clients := make([]*auditor.Client, numClients)
 	for i := 0; i < numClients; i++ {
@@ -27,10 +27,14 @@ func main() {
 		}
 		auditor.ReportPhase_AppendEntryToDatabase(CertAuditor, entry)
 	}
-
-	// ///shuffling stage
-	// for i := 0; i < numClients; i++ {
-	// 	client.ClientShuffle(CertAuditor, clients[i])
-	// }
+	fmt.Println("Reporting phase complete, Enter shuffling phase")
+	///shuffling stage
+	for i := 0; i < numClients; i++ {
+		client.ClientShuffle(CertAuditor, clients[i])
+	}
+	fmt.Println("Shuffling Complete, Enter Reveal Phase")
+	for i := 0; i < numClients; i++ {
+		// client.ClientShuffle(CertAuditor, clients[i])
+	}
 
 }

@@ -25,14 +25,13 @@ type ReportingEntry struct {
 }
 
 type Database struct {
-	Entries        []ReportingEntry
-	Shufflers_info []ShuffleRecords
+	Entries        []*ReportingEntry
+	Shufflers_info []*ShuffleRecords
 }
 
 type ShuffleRecords struct {
-	ID int
-	g  []byte
-	h  []byte
+	ID  int
+	h_i []byte
 }
 
 type Auditor struct {
@@ -94,13 +93,13 @@ func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEnt
 		}
 	} else {
 		databaseCiphertexts = Database{
-			Entries:        []ReportingEntry{},
-			Shufflers_info: []ShuffleRecords{},
+			Entries:        []*ReportingEntry{},
+			Shufflers_info: []*ShuffleRecords{},
 		}
 	}
 
 	// Append the new ciphertexts to the existing array
-	databaseCiphertexts.Entries = append(databaseCiphertexts.Entries, *entry)
+	databaseCiphertexts.Entries = append(databaseCiphertexts.Entries, entry)
 	// fmt.Println(databaseCiphertexts)
 	// fmt.Println(entry)
 

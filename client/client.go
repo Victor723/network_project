@@ -2,6 +2,7 @@ package client
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"log"
 	"os"
@@ -62,11 +63,12 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 }
 
 func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client) error {
+	// retrieve everything in the database
 	data, err := ReadDatabase(certauditor)
 	if err != nil {
 		return err
 	}
-	var database []*auditor.ReportingEntry
+	var database *auditor.Database
 
 	// Unmarshal the byte slice into the 'person' variable
 	err = json.Unmarshal(data, &database)
@@ -74,10 +76,31 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 		log.Fatalf("Error unmarshaling the JSON: %v", err)
 		return err
 	}
-	if len(database[0].Shufflers) == 0 {
+	if len(database.Shufflers_info) == 0 {
+		//  TODO more robust checks needed
 		// first shuffle
+		// randomize
 	} else {
 
 	}
 	return nil
+}
+
+// Shuffle securely shuffles the order of the input slice.
+func Shuffle(slice []*auditor.ReportingEntry) {
+	n := len(slice)
+	for i := n - 1; i > 0; i-- {
+		j := randomInt(i + 1)                   // Get a secure random index from 0 to i
+		slice[i], slice[j] = slice[j], slice[i] // Swap the elements at indexes i and j
+	}
+}
+
+// randomInt returns a secure random integer between 0 (inclusive) and n (exclusive).
+func randomInt(n int) int {
+	var buf [8]byte
+	_, err := rand.Read(buf[:])
+	if err != nil {
+		panic(err)
+	}
+	return int(binary.BigEndian.Uint64(buf[:]) % uint64(n))
 }
