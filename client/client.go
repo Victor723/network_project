@@ -81,12 +81,12 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 		//  TODO more robust checks needed
 		// first shuffle
 		// randomize the entries
-		fmt.Println("shuffling")
-		ShuffleEntries(database.Entries)
+
 	} else {
 
 	}
-
+	fmt.Println("shuffling")
+	ShuffleEntries(database.Entries)
 	// // Marshal the updated array back to a byte slice
 	// updatedData, err := json.Marshal(database)
 	// // fmt.Println(updatedData)
