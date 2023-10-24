@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
@@ -207,8 +208,8 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 
 	reportingClient.ShufflerID = len(database.Shufflers_info)
 	database.Shufflers_info = append(database.Shufflers_info, client_info)
-
-	fmt.Println("shuffling")
+	fmt.Print(reportingClient.ID)
+	fmt.Println(" shuffling")
 	ShuffleEntries(database.Entries)
 	// Marshal the updated array back to a byte slice
 	updatedData, err := json.Marshal(database)
@@ -242,4 +243,60 @@ func randomInt(n int) int {
 		panic(err)
 	}
 	return int(binary.BigEndian.Uint64(buf[:]) % uint64(n))
+}
+
+func ClientReveal(certauditor *auditor.Auditor, revealingClient *auditor.Client) *auditor.Database {
+	// retrieve everything in the database
+	data, err := ReadDatabase(certauditor)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return nil
+	}
+	var database auditor.Database
+
+	// Unmarshal the byte slice into variable
+	err = json.Unmarshal(data, &database)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return nil
+	}
+	/// loop to provide info
+	revealRecords := &auditor.DecryptRecords{
+		ShufflerID: revealingClient.ShufflerID,
+		Keys:       [][]byte{},
+	}
+	for i := 0; i < len(database.Entries); i++ {
+		// check if this is my entry
+		h_test, err := elgamal.ECDH_bytes(database.Entries[i].G_ri1, revealingClient.PrivateKey.Bytes())
+		if err != nil {
+			log.Fatalf("%v", err)
+			return nil
+		}
+
+		if bytes.Equal(h_test, database.Entries[i].H_r_i1) {
+			// it is my entry
+			fmt.Print(revealingClient.ID)
+			fmt.Println(" found entry")
+			// fmt.Print(" found entry")
+			add_two_gs, err := elgamal.Encrypt(database.Entries[i].Shufflers[revealingClient.ShufflerID], database.Entries[i].G_ri0)
+			if err != nil {
+				log.Fatalf("%v", err)
+				return nil
+			}
+			reveal_value_self, err := elgamal.ECDH_bytes(add_two_gs, revealingClient.PrivateKey.Bytes())
+
+			revealRecords.Keys = append(revealRecords.Keys, reveal_value_self)
+		} else {
+			// it is not
+			reveal_value_non_self, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[revealingClient.ShufflerID], revealingClient.PrivateKey.Bytes())
+			if err != nil {
+				log.Fatalf("%v", err)
+				return nil
+			}
+			revealRecords.Keys = append(revealRecords.Keys, reveal_value_non_self)
+		}
+
+	}
+	database.Decrypt_info = append(database.Decrypt_info, revealRecords)
+	return &database
 }
