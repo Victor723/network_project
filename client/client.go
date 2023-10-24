@@ -208,8 +208,8 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 
 	reportingClient.ShufflerID = len(database.Shufflers_info)
 	database.Shufflers_info = append(database.Shufflers_info, client_info)
-
-	fmt.Println("shuffling")
+	fmt.Print(reportingClient.ID)
+	fmt.Println(" shuffling")
 	ShuffleEntries(database.Entries)
 	// Marshal the updated array back to a byte slice
 	updatedData, err := json.Marshal(database)

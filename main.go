@@ -12,7 +12,7 @@ func main() {
 	// general init
 	curve := ecdh.P256()
 	database_name := "database.json"
-	numClients := 5
+	numClients := 50
 	CertAuditor := auditor.NewAuditor(database_name, curve)
 	CertAuditor.InitializeDatabase()
 	fmt.Println("Auditer Initialized, Enter reporting phase")
