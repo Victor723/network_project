@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdh"
 	"fmt"
+	"time"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/client"
 )
@@ -12,7 +13,7 @@ func main() {
 	// general init
 	curve := ecdh.P256()
 	database_name := "database.json"
-	numClients := 50
+	numClients := 10
 	CertAuditor := auditor.NewAuditor(database_name, curve)
 	CertAuditor.InitializeDatabase()
 	fmt.Println("Auditer Initialized, Enter reporting phase")
@@ -30,7 +31,10 @@ func main() {
 	fmt.Println("Reporting phase complete, Enter shuffling phase")
 	//shuffling stage
 	for i := 0; i < numClients; i++ {
+		start := time.Now() // Start the timer
 		client.ClientShuffle(CertAuditor, clients[i])
+		elapsed := time.Since(start) // Calculate elapsed time
+		fmt.Printf("Sequential Shuffling took %v to execute.\n", elapsed)
 	}
 	fmt.Println("Shuffling Complete, Enter Reveal Client Phase")
 	for i := 0; i < numClients; i++ {
@@ -49,9 +53,9 @@ func main() {
 		fmt.Print("checking for client ")
 		fmt.Print(clients[i].ID)
 		fmt.Println(": ")
-		fmt.Print("Intended Reporting value is")
-		fmt.Println(clients[i].ReportingValue)
-		fmt.Println("Finding the entry in the auditor logs")
+		// fmt.Print("Intended Reporting value is")
+		// fmt.Println(clients[i].ReportingValue)
+		// fmt.Println("Finding the entry in the auditor logs")
 		successful_one_client := false
 		for j := 0; j < len(result); j++ {
 			if bytes.Equal(result[j], clients[i].ReportingValue) {

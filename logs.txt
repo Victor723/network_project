@@ -1,0 +1,57 @@
+Cleared contents of database.json
+Auditer Initialized, Enter reporting phase
+Reporting phase complete, Enter shuffling phase
+0 shuffling
+Sequential Shuffling took 6.56525ms to execute.
+1 shuffling
+Sequential Shuffling took 7.255875ms to execute.
+2 shuffling
+Sequential Shuffling took 7.8065ms to execute.
+3 shuffling
+Sequential Shuffling took 8.048167ms to execute.
+4 shuffling
+Sequential Shuffling took 8.092584ms to execute.
+5 shuffling
+Sequential Shuffling took 8.502208ms to execute.
+6 shuffling
+Sequential Shuffling took 8.864542ms to execute.
+7 shuffling
+Sequential Shuffling took 9.22725ms to execute.
+8 shuffling
+Sequential Shuffling took 9.550792ms to execute.
+9 shuffling
+Sequential Shuffling took 9.968833ms to execute.
+Shuffling Complete, Enter Reveal Client Phase
+0 found entry
+1 found entry
+2 found entry
+3 found entry
+4 found entry
+5 found entry
+6 found entry
+7 found entry
+8 found entry
+9 found entry
+Client Reveal Complete, Auditor Calculating the entries
+Results calculated, verifying the correctness of the entries
+checking for client 0: 
+Found Matching Entry! At index 1
+checking for client 1: 
+Found Matching Entry! At index 2
+checking for client 2: 
+Found Matching Entry! At index 4
+checking for client 3: 
+Found Matching Entry! At index 3
+checking for client 4: 
+Found Matching Entry! At index 5
+checking for client 5: 
+Found Matching Entry! At index 9
+checking for client 6: 
+Found Matching Entry! At index 7
+checking for client 7: 
+Found Matching Entry! At index 8
+checking for client 8: 
+Found Matching Entry! At index 0
+checking for client 9: 
+Found Matching Entry! At index 6
+Success! Every Clients' entries are reported and decrypted correctly
