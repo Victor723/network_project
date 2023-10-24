@@ -32,8 +32,8 @@ func main() {
 		client.ClientShuffle(CertAuditor, clients[i])
 	}
 	fmt.Println("Shuffling Complete, Enter Reveal Phase")
-	// for i := 0; i < numClients; i++ {
-	// 	// client.ClientShuffle(CertAuditor, clients[i])
-	// }
+	for i := 0; i < numClients; i++ {
+		// client.ClientShuffle(CertAuditor, clients[i])
+	}
 
 }
