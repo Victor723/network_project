@@ -17,7 +17,22 @@ func NewClient(certauditor *auditor.Auditor, id int) *auditor.Client {
 	if err != nil {
 		panic(err)
 	}
-	return &auditor.Client{ID: id, PrivateKey: k, ReportingValue: elgamal.Generate_msg_bytes(certauditor.Curve), Curve: certauditor.Curve}
+	g := elgamal.Generate_Random_Dice_point(certauditor.Curve)
+	h, err := elgamal.ECDH_bytes(g, k.Bytes())
+	if err != nil {
+		panic(err)
+	}
+	// fmt.Println(h)
+	// fmt.Println()
+	//TODO map msg to a curve
+	return &auditor.Client{
+		ID:             id,
+		PrivateKey:     k,
+		ReportingValue: elgamal.Generate_msg_bytes(certauditor.Curve),
+		Curve:          certauditor.Curve,
+		G:              g,
+		H:              h,
+	}
 }
 
 func ReadDatabase(certauditor *auditor.Auditor) ([]byte, error) {
@@ -30,7 +45,7 @@ func ReadDatabase(certauditor *auditor.Auditor) ([]byte, error) {
 
 func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error) {
 	ri0 := elgamal.Generate_Random_Dice_seed(client.Curve)
-	h_r_i0, err := elgamal.ECDH_bytes(client.PrivateKey.PublicKey().Bytes(), ri0)
+	h_r_i0, err := elgamal.ECDH_bytes(client.H, ri0)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +54,8 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	// TODO g always starts from base point, maybe this is different?
-	g_r_i0, err := elgamal.Convert_seed_To_point(ri0, client.Curve)
+	// FIXED each client should have different g
+	g_r_i0, err := elgamal.ECDH_bytes(client.G, ri0)
 	if err != nil {
 		return nil, err
 	}
@@ -49,11 +64,11 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	h_r_i1, err := elgamal.ECDH_bytes(client.PrivateKey.PublicKey().Bytes(), ri1)
+	h_r_i1, err := elgamal.ECDH_bytes(client.H, ri1)
 	if err != nil {
 		return nil, err
 	}
-	g_r_i1, err := elgamal.Convert_seed_To_point(ri1, client.Curve)
+	g_r_i1, err := elgamal.ECDH_bytes(client.G, ri1)
 	if err != nil {
 		return nil, err
 	}
@@ -156,17 +171,18 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 		if !first_shuffle {
 			/// not the first shuffle, re-randomize the previous shufflers
 			for i := 0; i < len(database.Entries[i].Shufflers)-1; i++ {
-				shuffler_info := database.Shufflers_info[i]
-
+				// shuffler_info := database.Shufflers_info[i]
+				continue
 			}
 		}
 	}
 	/// append the client info
-	h_i, _ := elgamal.Convert_seed_To_point(reportingClient.PrivateKey.Bytes(), reportingClient.Curve)
 	client_info := &auditor.ShuffleRecords{
 		ID:  len(database.Shufflers_info),
-		H_i: h_i,
+		H_i: reportingClient.H,
+		G_i: reportingClient.G,
 	}
+
 	reportingClient.ShufflerID = len(database.Shufflers_info)
 	database.Shufflers_info = append(database.Shufflers_info, client_info)
 

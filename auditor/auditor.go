@@ -14,6 +14,8 @@ type Client struct {
 	ReportingValue []byte
 	Curve          ecdh.Curve
 	ShufflerID     int
+	G              []byte /// init point needs to be different for every client
+	H              []byte
 }
 
 // h = g^x where x is the private key
@@ -28,11 +30,18 @@ type ReportingEntry struct {
 type Database struct {
 	Entries        []*ReportingEntry
 	Shufflers_info []*ShuffleRecords
+	Decrypt_info   []*DecryptRecords
 }
 
 type ShuffleRecords struct {
 	ID  int
 	H_i []byte
+	G_i []byte
+}
+
+type DecryptRecords struct {
+	ShufflerID int
+	G_x        []byte
 }
 
 type Auditor struct {
@@ -101,8 +110,6 @@ func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEnt
 
 	// Append the new ciphertexts to the existing array
 	databaseCiphertexts.Entries = append(databaseCiphertexts.Entries, entry)
-	// fmt.Println(databaseCiphertexts)
-	// fmt.Println(entry)
 
 	// Marshal the updated array back to a byte slice
 	updatedData, err := json.Marshal(databaseCiphertexts)

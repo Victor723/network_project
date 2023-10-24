@@ -77,9 +77,6 @@ func Generate_msg_bytes(curve ecdh.Curve) []byte {
 	return new_p.PublicKey().Bytes()
 }
 
-func Generate_one_bytes() []byte {
-	return big.NewInt(1).Bytes()
-}
 func IsZero(bigInt *big.Int) bool {
 	return bigInt.Sign() == 0
 }
