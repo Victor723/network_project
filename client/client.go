@@ -171,8 +171,30 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 		if !first_shuffle {
 			/// not the first shuffle, re-randomize the previous shufflers
 			for i := 0; i < len(database.Entries[i].Shufflers)-1; i++ {
-				// shuffler_info := database.Shufflers_info[i]
-				continue
+				shuffler_info := database.Shufflers_info[i]
+				r_i_prime := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
+				g_r_i_prime, err := elgamal.ECDH_bytes(shuffler_info.G_i, r_i_prime)
+				if err != nil {
+					log.Fatalf("%v", err)
+					return err
+				}
+				/// changing the shuffler entry
+				database.Entries[i].Shufflers[shuffler_info.ID], err = elgamal.Encrypt(database.Entries[i].Shufflers[shuffler_info.ID], g_r_i_prime)
+				if err != nil {
+					log.Fatalf("%v", err)
+					return err
+				}
+				/// changing the msg entry
+				h_r_i_prime, err := elgamal.ECDH_bytes(shuffler_info.H_i, r_i_prime)
+				if err != nil {
+					log.Fatalf("%v", err)
+					return err
+				}
+				database.Entries[i].Cert_times_h_r10, err = elgamal.Encrypt(h_r_i_prime, database.Entries[i].Cert_times_h_r10)
+				if err != nil {
+					log.Fatalf("%v", err)
+					return err
+				}
 			}
 		}
 	}
