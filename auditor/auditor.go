@@ -4,7 +4,9 @@ import (
 	"crypto/ecdh"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"web_cert_reporting/elgamal"
 	// "web_cert_reporting/client"
 )
 
@@ -41,7 +43,7 @@ type ShuffleRecords struct {
 
 type DecryptRecords struct {
 	ShufflerID int
-	G_x        []byte
+	Keys       [][]byte
 }
 
 type Auditor struct {
@@ -105,6 +107,7 @@ func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEnt
 		databaseCiphertexts = Database{
 			Entries:        []*ReportingEntry{},
 			Shufflers_info: []*ShuffleRecords{},
+			Decrypt_info:   []*DecryptRecords{},
 		}
 	}
 
@@ -125,4 +128,51 @@ func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEnt
 	}
 
 	return nil
+}
+
+func WriteRevealInfoToDatabase(certauditor *Auditor, db *Database) error {
+	// Marshal the updated array back to a byte slice
+	updatedData, err := json.Marshal(db)
+	// fmt.Println(updatedData)
+	if err != nil {
+		return err
+	}
+
+	// Write the updated data to the file
+	err = os.WriteFile(certauditor.FileName, updatedData, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CalculateEntries(certauditor *Auditor) [][]byte {
+	/// reading the database
+	data, err := ReadDatabase(certauditor)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return nil
+	}
+	var database Database
+
+	// Unmarshal the byte slice into variable
+	err = json.Unmarshal(data, &database)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return nil
+	}
+	res := [][]byte{}
+	// decrypting
+	for i := 0; i < len(database.Entries); i++ {
+		res = append(res, database.Entries[i].Cert_times_h_r10)
+		for j := 0; j < len(database.Decrypt_info); j++ {
+			res[i], err = elgamal.Decrypt(database.Decrypt_info[j].Keys[i], res[i])
+			if err != nil {
+				log.Fatalf("%v", err)
+				return nil
+			}
+		}
+	}
+	return res
 }
