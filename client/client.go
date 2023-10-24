@@ -29,11 +29,8 @@ func ReadDatabase(certauditor *auditor.Auditor) ([]byte, error) {
 }
 
 func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error) {
-	ri0, err := client.Curve.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	h_r_i0, err := elgamal.ECDH_returnPoint(ri0, client.PrivateKey.PublicKey())
+	ri0 := elgamal.Generate_Random_Dice_seed(client.Curve)
+	h_r_i0, err := elgamal.ECDH_bytes(client.PrivateKey.PublicKey().Bytes(), ri0)
 	if err != nil {
 		return nil, err
 	}
@@ -42,18 +39,24 @@ func CreateInitialEntry(client *auditor.Client) (*auditor.ReportingEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	// TODO g always starts from base point
-	g_r_i0 := ri0.PublicKey().Bytes()
+	// TODO g always starts from base point, maybe this is different?
+	g_r_i0, err := elgamal.Convert_seed_To_point(ri0, client.Curve)
+	if err != nil {
+		return nil, err
+	}
 	/// generate the second two item
-	ri1, err := client.Curve.GenerateKey(rand.Reader)
+	ri1 := elgamal.Generate_Random_Dice_seed(client.Curve)
 	if err != nil {
 		return nil, err
 	}
-	h_r_i1, err := elgamal.ECDH_returnPoint(ri1, client.PrivateKey.PublicKey())
+	h_r_i1, err := elgamal.ECDH_bytes(client.PrivateKey.PublicKey().Bytes(), ri1)
 	if err != nil {
 		return nil, err
 	}
-	g_r_i1 := ri1.PublicKey().Bytes()
+	g_r_i1, err := elgamal.Convert_seed_To_point(ri1, client.Curve)
+	if err != nil {
+		return nil, err
+	}
 	return &auditor.ReportingEntry{
 		Cert_times_h_r10: cert_times_h_r10,
 		G_ri0:            g_r_i0,
@@ -77,28 +80,110 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 		log.Fatalf("Error unmarshaling the JSON: %v", err)
 		return err
 	}
-	if len(database.Shufflers_info) == 0 {
-		//  TODO more robust checks needed
-		// first shuffle
-		// randomize the entries
-
-	} else {
-
+	first_shuffle := true
+	if len(database.Shufflers_info) > 0 {
+		// not first shuffle
+		first_shuffle = false
 	}
+	//  TODO more robust checks needed
+	// randomize the entries
+	for i := 0; i < len(database.Entries); i++ {
+		r_i_0_prime := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
+		r_i_1_prime := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
+		////////// r_i_0_prime   rolling///////
+		// roll the Cert_times_h_r10 with r_i_0_prime
+		rolled_H_r_i1, err := elgamal.ECDH_bytes(database.Entries[i].H_r_i1, r_i_0_prime)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		/// add the roll the Cert_times_h_r10 with r_i_0_prime in with Cert_times_h_r10
+		new_Cert_times_h_r10, err := elgamal.Encrypt(rolled_H_r_i1, database.Entries[i].Cert_times_h_r10)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		database.Entries[i].Cert_times_h_r10 = new_Cert_times_h_r10
+		// roll G_ri0 r_i_0_prime
+		// database.Entries[i].G_ri0
+		rolled_with_G_ri1, err := elgamal.ECDH_bytes(database.Entries[i].G_ri1, r_i_0_prime)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		//add in the G_ri1 rolled with r_i_0_prime into
+		new_G_ri0, err := elgamal.Encrypt(rolled_with_G_ri1, database.Entries[i].G_ri0)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		database.Entries[i].G_ri0 = new_G_ri0
+		////////// r_i_1_prime   rolling///////
+		// roll the H_r_i1 with r_i_1_prime
+		rolled_H_ri1_ri_1_prime, err := elgamal.ECDH_bytes(database.Entries[i].H_r_i1, r_i_1_prime)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		database.Entries[i].H_r_i1 = rolled_H_ri1_ri_1_prime
+		// roll the g_r_i1 with r_i_1_prime
+		rolled_g_ri1_ri_1_prime, err := elgamal.ECDH_bytes(database.Entries[i].G_ri1, r_i_1_prime)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		database.Entries[i].G_ri1 = rolled_g_ri1_ri_1_prime
+		// encrypt and append g_r_i_k
+		r_i_k := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
+		g_r_i_k, err := elgamal.Convert_seed_To_point(r_i_k, reportingClient.Curve)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		// append the g_r_i_k to the entry shufflers
+		database.Entries[i].Shufflers = append(database.Entries[i].Shufflers, g_r_i_k)
+		shared_h_r_i_k, err := elgamal.ECDH_bytes(g_r_i_k, reportingClient.PrivateKey.Bytes())
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		/// encrypt the entry again with the shared key
+		database.Entries[i].Cert_times_h_r10, err = elgamal.Encrypt(shared_h_r_i_k, database.Entries[i].Cert_times_h_r10)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+		if !first_shuffle {
+			/// not the first shuffle, re-randomize the previous shufflers
+			for i := 0; i < len(database.Entries[i].Shufflers)-1; i++ {
+				shuffler_info := database.Shufflers_info[i]
+
+			}
+		}
+	}
+	/// append the client info
+	h_i, _ := elgamal.Convert_seed_To_point(reportingClient.PrivateKey.Bytes(), reportingClient.Curve)
+	client_info := &auditor.ShuffleRecords{
+		ID:  len(database.Shufflers_info),
+		H_i: h_i,
+	}
+	reportingClient.ShufflerID = len(database.Shufflers_info)
+	database.Shufflers_info = append(database.Shufflers_info, client_info)
+
 	fmt.Println("shuffling")
 	ShuffleEntries(database.Entries)
-	// // Marshal the updated array back to a byte slice
-	// updatedData, err := json.Marshal(database)
-	// // fmt.Println(updatedData)
-	// if err != nil {
-	// 	return err
-	// }
+	// Marshal the updated array back to a byte slice
+	updatedData, err := json.Marshal(database)
+	// fmt.Println(updatedData)
+	if err != nil {
+		return err
+	}
 
-	// // Write the updated data to the file
-	// err = os.WriteFile(certauditor.FileName, updatedData, 0644)
-	// if err != nil {
-	// 	return err
-	// }
+	// Write the updated data to the file
+	err = os.WriteFile(certauditor.FileName, updatedData, 0644)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

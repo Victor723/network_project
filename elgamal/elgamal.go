@@ -21,6 +21,15 @@ func ECDH_returnPoint(priv *ecdh.PrivateKey, pub *ecdh.PublicKey) ([]byte, error
 	return pub_point.Bytes(), nil
 }
 
+func ECDH_bytes(point []byte, scalar []byte) ([]byte, error) {
+	pub_point, err := nistec.NewP256Point().SetBytes(point)
+	if err != nil {
+		return nil, errors.New("the provided point is not a point on the curve")
+	}
+	pub_point.ScalarMult(pub_point, scalar)
+	return pub_point.Bytes(), nil
+}
+
 func Encrypt(shared_secret []byte, msg []byte) ([]byte, error) {
 	/// assuming curve here, TODO Add the curve type
 	shared_secret_point, err := nistec.NewP256Point().SetBytes(shared_secret)

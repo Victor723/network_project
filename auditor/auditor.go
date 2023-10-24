@@ -13,6 +13,7 @@ type Client struct {
 	PrivateKey     *ecdh.PrivateKey
 	ReportingValue []byte
 	Curve          ecdh.Curve
+	ShufflerID     int
 }
 
 // h = g^x where x is the private key
@@ -31,7 +32,7 @@ type Database struct {
 
 type ShuffleRecords struct {
 	ID  int
-	h_i []byte
+	H_i []byte
 }
 
 type Auditor struct {
