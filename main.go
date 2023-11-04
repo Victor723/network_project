@@ -5,6 +5,7 @@ import (
 	"crypto/ecdh"
 	"fmt"
 	"time"
+	"web_cert_reporting/aes"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/client"
 )
@@ -74,4 +75,21 @@ func main() {
 		fmt.Println("FAIL!")
 
 	}
+
+	// AES encrypt and decrypt
+	key := []byte("a very strongkey") // 16 bytes for AES-128, 24 bytes for AES-192, 32 bytes for AES-256
+	plainText := []byte("Hello, World!")
+
+	encryptedData, err := aes.Encrypt(plainText, key)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Encrypted: %x\n", encryptedData)
+
+	decryptedData, err := aes.Decrypt(encryptedData, key)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Decrypted: %s\n", decryptedData)
+
 }
