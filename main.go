@@ -4,23 +4,24 @@ import (
 	"bytes"
 	"crypto/ecdh"
 	"fmt"
-
 	"time"
+
 	"web_cert_reporting/aes"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/client"
 	"web_cert_reporting/elgamal"
+	"web_cert_reporting/shamir"
 )
 
 func main() {
-	// general init
+	// // general init
 	curve := ecdh.P256()
 	database_name := "database.json"
 	numClients := 10
 	CertAuditor := auditor.NewAuditor(database_name, curve)
 	CertAuditor.InitializeDatabase()
 	fmt.Println("Auditer Initialized, Enter reporting phase")
-	/// init client and starting the reporting phase
+	// / init client and starting the reporting phase
 	clients := make([]*auditor.Client, numClients)
 	for i := 0; i < numClients; i++ {
 		clients[i] = client.NewClient(CertAuditor, i)
@@ -79,21 +80,44 @@ func main() {
 	}
 
 	// AES encrypt and decrypt
-	curve_1 := ecdh.P256()
-	a := elgamal.Generate_Random_Dice_point(curve_1)
+	pri_key := clients[0].PrivateKey.Bytes() // get some key
+	fmt.Println("client key: ", pri_key)
+
+	parts, err := shamir.Split(pri_key, 10, 7)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	var pri_part []byte
+	var tag byte
+	for k, v := range parts {
+		pri_part = v
+		tag = k
+		break
+	}
+	fmt.Println("tag: ", tag)
+	fmt.Println("splitted_part: ", pri_part)
+
+	a := elgamal.Generate_Random_Dice_point(curve)
 	key := aes.DeriveKeyFromSHA256([]byte(a), 16) // 16 bytes for AES-128, 24 bytes for AES-192, 32 bytes for AES-256
-	plainText := []byte("Hello, World!")
 
-	encryptedData, err := aes.Encrypt(plainText, key)
+	encryptedData, err := aes.Encrypt(pri_part, key) //encrypt
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Encrypted: %x\n", encryptedData)
+	fmt.Println("Encrypted: ", encryptedData)
 
-	decryptedData, err := aes.Decrypt(encryptedData, key)
+	decryptedData, err := aes.Decrypt(encryptedData, key) //decrypt
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Decrypted: %s\n", decryptedData)
+	fmt.Println("Decrypted: ", decryptedData)
+
+	if bytes.Equal(pri_part, decryptedData) { // compare equal
+		fmt.Println("The slices are equal.")
+	} else {
+		fmt.Println("The slices are not equal.")
+	}
 
 }
