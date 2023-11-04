@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/ecdh"
 	"fmt"
+
 	"time"
 	"web_cert_reporting/aes"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/client"
+	"web_cert_reporting/elgamal"
 )
 
 func main() {
@@ -77,7 +79,9 @@ func main() {
 	}
 
 	// AES encrypt and decrypt
-	key := []byte("a very strongkey") // 16 bytes for AES-128, 24 bytes for AES-192, 32 bytes for AES-256
+	curve_1 := ecdh.P256()
+	a := elgamal.Generate_Random_Dice_point(curve_1)
+	key := aes.DeriveKeyFromSHA256([]byte(a), 16) // 16 bytes for AES-128, 24 bytes for AES-192, 32 bytes for AES-256
 	plainText := []byte("Hello, World!")
 
 	encryptedData, err := aes.Encrypt(plainText, key)

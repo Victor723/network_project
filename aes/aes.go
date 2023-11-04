@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 )
@@ -55,4 +56,9 @@ func Decrypt(ciphertext []byte, key []byte) ([]byte, error) {
 	ciphertext = ciphertext[:len(ciphertext)-int(padding)]
 
 	return ciphertext, nil
+}
+
+func DeriveKeyFromSHA256(inputKey []byte, size int) []byte {
+	hash := sha256.Sum256(inputKey)
+	return hash[:size]
 }
