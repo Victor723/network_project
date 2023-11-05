@@ -7,17 +7,18 @@ import (
 	"log"
 	"os"
 	"web_cert_reporting/elgamal"
-	// "web_cert_reporting/client"
 )
 
 type Client struct {
 	ID             int
-	PrivateKey     *ecdh.PrivateKey
+	ReportingKey   *ecdh.PrivateKey
+	ShuffleKey     *ecdh.PrivateKey
 	ReportingValue []byte
 	Curve          ecdh.Curve
-	ShufflerID     int
-	G              []byte /// init point needs to be different for every client
-	H              []byte
+	G_report       []byte /// init point needs to be different for every client
+	H_report       []byte
+	G_shuffle      []byte /// init point needs to be different for every client
+	H_shuffle      []byte
 }
 
 // h = g^x where x is the private key
@@ -30,12 +31,26 @@ type ReportingEntry struct {
 }
 
 type Database struct {
-	Entries        []*ReportingEntry
-	Shufflers_info []*ShuffleRecords
-	Decrypt_info   []*DecryptRecords
+	Entries         []*ReportingEntry
+	Shufflers_info  []*ShuffleRecords
+	Decrypt_info    []*DecryptRecords
+	Shuffle_PubKeys []*ShufflePubKeys
+	SecreteShareMap map[int][]*SecreteSharePoint
 }
 
 type ShuffleRecords struct {
+	ID int
+	// H_i []byte
+	// G_i []byte
+}
+
+type SecreteSharePoint struct {
+	Intended_Client int
+	Tag             byte
+	Encrypted_y     []byte
+}
+
+type ShufflePubKeys struct {
 	ID  int
 	H_i []byte
 	G_i []byte
@@ -49,6 +64,11 @@ type DecryptRecords struct {
 type Auditor struct {
 	FileName string
 	Curve    ecdh.Curve
+}
+
+type SecreteShareDecrypt struct {
+	Tag           byte
+	DecryptPieces [][]byte
 }
 
 // NewAuditor creates a new Auditor instance
@@ -79,6 +99,30 @@ func (a *Auditor) InitializeDatabase() error {
 		return err
 	}
 
+	data, err := ReadDatabase(a)
+	if err != nil {
+		return err
+	}
+
+	// Unmarshal the byte slice into variable
+	var database Database
+	if len(data) > 0 {
+		err = json.Unmarshal(data, &database)
+		if err != nil {
+			return err
+		}
+	} else {
+		database = Database{
+			Entries:         []*ReportingEntry{},
+			Shufflers_info:  []*ShuffleRecords{},
+			Decrypt_info:    []*DecryptRecords{},
+			Shuffle_PubKeys: []*ShufflePubKeys{},
+			SecreteShareMap: make(map[int][]*SecreteSharePoint),
+		}
+	}
+
+	WriteRevealInfoToDatabase(a, &database)
+
 	return nil
 }
 
@@ -98,17 +142,9 @@ func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEnt
 
 	// Unmarshal the existing data into a slice of CipherText
 	var databaseCiphertexts Database
-	if len(existingData) > 0 {
-		err = json.Unmarshal(existingData, &databaseCiphertexts)
-		if err != nil {
-			return err
-		}
-	} else {
-		databaseCiphertexts = Database{
-			Entries:        []*ReportingEntry{},
-			Shufflers_info: []*ShuffleRecords{},
-			Decrypt_info:   []*DecryptRecords{},
-		}
+	err = json.Unmarshal(existingData, &databaseCiphertexts)
+	if err != nil {
+		return err
 	}
 
 	// Append the new ciphertexts to the existing array
@@ -176,3 +212,43 @@ func CalculateEntries(certauditor *Auditor) [][]byte {
 	}
 	return res
 }
+
+func MakeACopyOfDatabase(certauditor *Auditor) error {
+	// / reading the database
+	data, err := ReadDatabase(certauditor)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return nil
+	}
+	var database Database
+
+	// Unmarshal the byte slice into variable
+	err = json.Unmarshal(data, &database)
+	if err != nil {
+		log.Fatalf("Error unmarshaling the JSON: %v", err)
+		return nil
+	}
+
+	// Marshal the updated array back to a byte slice
+	updatedData, err := json.Marshal(database)
+	// fmt.Println(updatedData)
+	if err != nil {
+		return err
+	}
+	// Write the updated data to the file
+	err = os.WriteFile("database_copy.json", updatedData, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// func CalculateEntriesForFaultToleranceOfOneClient(CertAuditor *Auditor, result [][]byte, fault_tolerant_results []*SecreteShareDecrypt) ([][]byte, error) {
+// 	// the laranagian method, brutal
+// 	// construct a map and a tag array to enable better access
+// 	// apply larangian to every entry
+// 	for i := 0; i < len(result); i++ {
+// 		// result[i]
+// 	}
+// }
