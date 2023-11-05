@@ -10,17 +10,19 @@ import (
 	"time"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/client"
+
+	"github.com/coinbase/kryptology/pkg/core/curves"
 )
 
 func main() {
 	// general init
 	curve := ecdh.P256()
 	database_name := "database.json"
-	numClients := 5
-	secret_pieces := numClients - 1
-	threshold := 4
+	numClients := 10
+	secret_pieces := uint32(9)
+	threshold := uint32(8)
 	clients_sit_out := 1
-	CertAuditor := auditor.NewAuditor(database_name, curve)
+	CertAuditor := auditor.NewAuditor(database_name, curve, secret_pieces, threshold, curves.P256())
 	CertAuditor.InitializeDatabase()
 	fmt.Println("Auditer Initialized, Enter reporting phase")
 	/// init client and starting the reporting phase
@@ -42,7 +44,7 @@ func main() {
 		}
 		auditor.ReportPhase_AppendEntryToDatabase(CertAuditor, entry)
 		//// client shares the secrete in a encrypted way
-		client.SecreteShare(CertAuditor, clients[i], secret_pieces, threshold)
+		client.SecreteShare(CertAuditor, clients[i])
 	}
 	fmt.Println("Reporting phase complete, Enter shuffling phase")
 	//shuffling stage
@@ -62,6 +64,7 @@ func main() {
 		clients_out[i], clients = removeRandomElement(clients)
 	}
 
+	fmt.Println(len(clients))
 	for i := 0; i < len(clients); i++ {
 		db := client.ClientReveal(CertAuditor, clients[i])
 		err := auditor.WriteRevealInfoToDatabase(CertAuditor, db)
@@ -73,7 +76,7 @@ func main() {
 
 	fmt.Println("Client Reveal Complete, Auditor Calculating the entries")
 	result := auditor.CalculateEntries(CertAuditor)
-
+	// fmt.Println(result)
 	if clients_sit_out > 0 {
 		// fault tolerance kick in
 		fmt.Println("Fault Tolerant Kicking in")
@@ -82,20 +85,21 @@ func main() {
 			// client reports the pieces to the auditor to decrypt
 			for j := 0; j < len(clients); j++ {
 				decrypted_piece, err := client.ClientReportDecryptedSecret(CertAuditor, clients[j], clients_out[i].ID)
-				if err != nil && decrypted_piece != nil {
+				if err == nil && decrypted_piece != nil {
 					fault_tolerant_results = append(fault_tolerant_results, decrypted_piece)
 				}
 			}
-			/// may need to check whether the client number required passed the threshold
-			// compute the new result after this round of fault tolerance
-			// var err error
-			// result, err = auditor.CalculateEntriesForFaultToleranceOfOneClient(CertAuditor, result, fault_tolerant_results)
-			// if err != nil {
-			// 	fmt.Println(err)
-			// 	return
-			// }
+			// may need to check whether the client number required passed the threshold
+			//compute the new result after this round of fault tolerance
+			var err error
+			result, err = auditor.CalculateEntriesForFaultToleranceOfOneClient(CertAuditor, result, fault_tolerant_results)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 		}
 	}
+	// fmt.Println(result)
 	successful := true
 	fmt.Println("Results calculated, verifying the correctness of the entries")
 	for i := 0; i < len(clients); i++ {
@@ -121,7 +125,34 @@ func main() {
 		fmt.Println("Success! Every Clients' entries are reported and decrypted correctly")
 	} else {
 		fmt.Println("FAIL!")
-
+	}
+	successful1 := true
+	fmt.Println("verifying the those who did not participate did not reveal their value")
+	for i := 0; i < len(clients_out); i++ {
+		fmt.Print("checking for client ")
+		fmt.Print(clients_out[i].ID)
+		fmt.Println(": ")
+		// fmt.Print("Intended Reporting value is")
+		// fmt.Println(clients[i].ReportingValue)
+		fmt.Println("Finding the entry in the auditor logs")
+		successful_one_client1 := true
+		for j := 0; j < len(result); j++ {
+			if bytes.Equal(result[j], clients_out[i].ReportingValue) {
+				fmt.Print("Found Matching Entry! At index Fail!!!!!")
+				fmt.Println(j)
+				successful_one_client1 = false
+			}
+		}
+		fmt.Print("Did NOT FIND IT! GOOD for Client ")
+		fmt.Println(clients_out[i].ID)
+		if !successful_one_client1 {
+			successful1 = false
+		}
+	}
+	if successful && successful1 {
+		fmt.Println("Success! Every Clients' entries are reported and decrypted correctly for participating client. Those who did not reveal did not get revealed")
+	} else {
+		fmt.Println("FAIL!")
 	}
 	fmt.Println("This is Fault Tolerant Version!")
 }

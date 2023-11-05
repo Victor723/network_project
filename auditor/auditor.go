@@ -7,6 +7,9 @@ import (
 	"log"
 	"os"
 	"web_cert_reporting/elgamal"
+
+	"github.com/coinbase/kryptology/pkg/core/curves"
+	"github.com/coinbase/kryptology/pkg/sharing"
 )
 
 type Client struct {
@@ -19,6 +22,8 @@ type Client struct {
 	H_report       []byte
 	G_shuffle      []byte /// init point needs to be different for every client
 	H_shuffle      []byte
+	DH_Pub_H       []byte /// pub key for secrete sharing
+	DH_Pub_private []byte
 }
 
 // h = g^x where x is the private key
@@ -46,14 +51,15 @@ type ShuffleRecords struct {
 
 type SecreteSharePoint struct {
 	Intended_Client int
-	Tag             byte
+	Tag             uint32
 	Encrypted_y     []byte
 }
 
 type ShufflePubKeys struct {
-	ID  int
-	H_i []byte
-	G_i []byte
+	ID       int
+	H_i      []byte
+	G_i      []byte
+	DH_Pub_H []byte
 }
 
 type DecryptRecords struct {
@@ -62,18 +68,21 @@ type DecryptRecords struct {
 }
 
 type Auditor struct {
-	FileName string
-	Curve    ecdh.Curve
+	FileName         string
+	Curve            ecdh.Curve
+	Shamir_pieces    uint32
+	Shamir_threshold uint32
+	Shamir_curve     *curves.Curve
 }
 
 type SecreteShareDecrypt struct {
-	Tag           byte
+	Tag           uint32
 	DecryptPieces [][]byte
 }
 
 // NewAuditor creates a new Auditor instance
-func NewAuditor(fileName string, c ecdh.Curve) *Auditor {
-	return &Auditor{FileName: fileName, Curve: c}
+func NewAuditor(fileName string, c ecdh.Curve, shamir_p uint32, shamir_t uint32, shamir_curve *curves.Curve) *Auditor {
+	return &Auditor{FileName: fileName, Curve: c, Shamir_pieces: shamir_p, Shamir_threshold: shamir_t, Shamir_curve: shamir_curve}
 }
 
 func (a *Auditor) InitializeDatabase() error {
@@ -213,6 +222,20 @@ func CalculateEntries(certauditor *Auditor) [][]byte {
 	return res
 }
 
+// func CalculateEntries_one_client(certauditor *Auditor, client *Client, database *Database) [][]byte {
+
+// 	res := [][]byte{}
+// 	// decrypting
+// 	for i := 0; i < len(database.Entries); i++ {
+// 		for j := 0; j < len(database.Decrypt_info); j++ {
+// 			if database.Decrypt_info[j].ShufflerID == client.ID {
+// 				res = append(res, database.Decrypt_info[j].Keys[i])
+// 			}
+// 		}
+// 	}
+// 	return res
+// }
+
 func MakeACopyOfDatabase(certauditor *Auditor) error {
 	// / reading the database
 	data, err := ReadDatabase(certauditor)
@@ -244,11 +267,68 @@ func MakeACopyOfDatabase(certauditor *Auditor) error {
 	return nil
 }
 
-// func CalculateEntriesForFaultToleranceOfOneClient(CertAuditor *Auditor, result [][]byte, fault_tolerant_results []*SecreteShareDecrypt) ([][]byte, error) {
-// 	// the laranagian method, brutal
-// 	// construct a map and a tag array to enable better access
-// 	// apply larangian to every entry
-// 	for i := 0; i < len(result); i++ {
-// 		// result[i]
+func CalculateEntriesForFaultToleranceOfOneClient(CertAuditor *Auditor, result [][]byte, fault_tolerant_results []*SecreteShareDecrypt) ([][]byte, error) {
+	// the laranagian method, brutal
+	// construct a map and a tag array to enable better access
+	list_of_tags := make([]uint32, len(fault_tolerant_results))
+	for i := 0; i < len(list_of_tags); i++ {
+		// result[i]
+		list_of_tags[i] = fault_tolerant_results[i].Tag
+	}
+	// fmt.Println(list_of_tags)
+	// recreate the shamir and calculate coefficients
+	scheme, _ := sharing.NewShamir(CertAuditor.Shamir_threshold, CertAuditor.Shamir_pieces, CertAuditor.Shamir_curve)
+	lagrange_map, err := scheme.LagrangeCoeffs(list_of_tags)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return nil, err
+	}
+	// apply larangian to every entry
+	// fmt.Println(lagrange_map)
+	/// add up first
+	calculated_res := [][]byte{}
+	for i := 0; i < len(fault_tolerant_results); i++ {
+		// result[i]
+		lcoef := lagrange_map[fault_tolerant_results[i].Tag].Bytes()
+		for j := 0; j < len(result); j++ {
+			d_lambda, err := elgamal.ECDH_bytes(fault_tolerant_results[i].DecryptPieces[j], lcoef)
+			if err != nil {
+				log.Fatalf("%v", err)
+				return nil, err
+			}
+			if i == 0 {
+				calculated_res = append(calculated_res, d_lambda)
+			} else {
+				calculated_res[j], err = elgamal.Encrypt(calculated_res[j], d_lambda)
+				if err != nil {
+					log.Fatalf("%v", err)
+					return nil, err
+				}
+			}
+		}
+	}
+	for k := 0; k < len(result); k++ {
+		result[k], _ = elgamal.Decrypt(calculated_res[k], result[k])
+	}
+	return result, err
+}
+
+// func ReconstructKey(CertAuditor *Auditor, clients_out_1 *Client, fault_tolerant_results []*SecreteShareDecrypt) {
+// 	var l []*sharing.ShamirShare
+// 	for i := 0; i < len(fault_tolerant_results); i++ {
+// 		o := &sharing.ShamirShare{
+// 			Id:    fault_tolerant_results[i].Tag,
+// 			Value: fault_tolerant_results[i].Decrypt_Y}
+// 		l = append(l, o)
 // 	}
+// 	scheme, _ := sharing.NewShamir(CertAuditor.Shamir_threshold, CertAuditor.Shamir_pieces, CertAuditor.Shamir_curve)
+// 	r, err := scheme.Combine(l...)
+// 	fmt.Println(len(fault_tolerant_results))
+// 	if err != nil {
+// 		log.Fatalf("%v", err)
+// 		return
+// 	}
+
+// 	fmt.Println(r)
+// 	fmt.Println(clients_out_1.ShuffleKey.Bytes())
 // }

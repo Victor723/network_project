@@ -12,7 +12,8 @@ import (
 	"web_cert_reporting/aes"
 	"web_cert_reporting/auditor"
 	"web_cert_reporting/elgamal"
-	"web_cert_reporting/shamir"
+
+	"github.com/coinbase/kryptology/pkg/sharing"
 )
 
 // NewAuditor creates a new Auditor instance
@@ -25,6 +26,12 @@ func NewClient(certauditor *auditor.Auditor, id int) *auditor.Client {
 	if err != nil {
 		panic(err)
 	}
+
+	dh_pub, err := certauditor.Curve.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+
 	g_report := elgamal.Generate_Random_Dice_point(certauditor.Curve)
 	h_report, err := elgamal.ECDH_bytes(g_report, k_report.Bytes())
 	if err != nil {
@@ -36,8 +43,9 @@ func NewClient(certauditor *auditor.Auditor, id int) *auditor.Client {
 	if err != nil {
 		panic(err)
 	}
-	// fmt.Println(h)
-	// fmt.Println()
+
+	dh_pub_h := dh_pub.PublicKey().Bytes()
+	dh_pub_pri := dh_pub.Bytes()
 	//TODO map msg to a curve
 	return &auditor.Client{
 		ID:             id,
@@ -49,6 +57,8 @@ func NewClient(certauditor *auditor.Auditor, id int) *auditor.Client {
 		H_report:       h_report,
 		G_shuffle:      g_shuffle,
 		H_shuffle:      h_shuffle,
+		DH_Pub_H:       dh_pub_h,
+		DH_Pub_private: dh_pub_pri,
 	}
 }
 
@@ -68,9 +78,10 @@ func RegisterShuffleKeyWithAduitor(client *auditor.Client, certauditor *auditor.
 	}
 
 	client_info := &auditor.ShufflePubKeys{
-		ID:  client.ID,
-		H_i: client.H_shuffle,
-		G_i: client.G_shuffle,
+		ID:       client.ID,
+		H_i:      client.H_shuffle,
+		G_i:      client.G_shuffle,
+		DH_Pub_H: client.DH_Pub_H,
 	}
 
 	database.Shuffle_PubKeys = append(database.Shuffle_PubKeys, client_info)
@@ -394,7 +405,7 @@ func ClientReveal(certauditor *auditor.Auditor, revealingClient *auditor.Client)
 }
 
 // /////screte sharing ///////
-func SecreteShare(certauditor *auditor.Auditor, reportingClient *auditor.Client, secret_pieces int, threshold int) error {
+func SecreteShare(certauditor *auditor.Auditor, reportingClient *auditor.Client) error {
 	//// read the database first
 	data, err := ReadDatabase(certauditor)
 	if err != nil {
@@ -411,7 +422,17 @@ func SecreteShare(certauditor *auditor.Auditor, reportingClient *auditor.Client,
 	}
 	/// start secrete sharing and store it on the auditor
 	// secrete pieces has to be bigger than threshold
-	pieces, err := shamir.Split(reportingClient.ShuffleKey.Bytes(), secret_pieces, threshold)
+	scheme, err := sharing.NewShamir(certauditor.Shamir_threshold, certauditor.Shamir_pieces, certauditor.Shamir_curve)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return err
+	}
+	key_value_scalar, err := certauditor.Shamir_curve.NewScalar().SetBytes(reportingClient.ShuffleKey.Bytes())
+	if err != nil {
+		log.Fatalf("%v", err)
+		return err
+	}
+	shares, err := scheme.Split(key_value_scalar, rand.Reader)
 	if err != nil {
 		log.Fatalf("%v", err)
 		return err
@@ -427,7 +448,7 @@ func SecreteShare(certauditor *auditor.Auditor, reportingClient *auditor.Client,
 			list_client_id = append(list_client_id, database.Shuffle_PubKeys[i].ID)
 		}
 	}
-	for p := range pieces {
+	for i := 0; i < len(shares); i++ {
 		// tag: p and y: pieces[p]
 		/// remove a client to have the secrete
 		var removed_client int
@@ -437,20 +458,21 @@ func SecreteShare(certauditor *auditor.Auditor, reportingClient *auditor.Client,
 			log.Fatalf("%v", err)
 			return err
 		}
-		intended_client_SharedSecret, err := elgamal.ECDH_bytes(intended_client_keys.H_i, reportingClient.ShuffleKey.Bytes())
+		intended_client_SharedSecret, err := elgamal.ECDH_bytes(intended_client_keys.DH_Pub_H, reportingClient.DH_Pub_private)
 		if err != nil {
 			log.Fatalf("%v", err)
 			return err
 		}
 		symmetric_key := aes.DeriveKeyFromSHA256(intended_client_SharedSecret, 16) // 16 bytes for AES-128, 24 bytes for AES-192, 32 bytes for AES-256
-		encryptedData_y, err := aes.Encrypt(pieces[p], symmetric_key)
+		// fmt.Println(symmetric_key)
+		encryptedData_y, err := aes.Encrypt(shares[i].Value, symmetric_key)
 		if err != nil {
 			log.Fatalf("%v", err)
 			return err
 		}
 		Encrypt_piece := &auditor.SecreteSharePoint{
 			Intended_Client: removed_client,
-			Tag:             p,
+			Tag:             shares[i].Id,
 			Encrypted_y:     encryptedData_y,
 		}
 		encrypt_secrete_array = append(encrypt_secrete_array, Encrypt_piece)
@@ -520,19 +542,22 @@ func ClientReportDecryptedSecret(certauditor *auditor.Auditor, client *auditor.C
 		return nil, err
 	}
 	// compute d_j_i with for each database entry and return to auditor
-	shared_secrete, err := elgamal.ECDH_bytes(missingClientPubKey.H_i, client.ShuffleKey.Bytes())
+	shared_secrete, err := elgamal.ECDH_bytes(missingClientPubKey.DH_Pub_H, client.DH_Pub_private)
 	if err != nil {
 		log.Fatalf("%v", err)
 		return nil, err
 	}
 	symmetric_key := aes.DeriveKeyFromSHA256(shared_secrete, 16)
-	fmt.Println(missingClientPiece.Encrypted_y)
-	fmt.Println(symmetric_key)
+	// fmt.Println(symmetric_key)
 	decrypted_y, err := aes.Decrypt(missingClientPiece.Encrypted_y, symmetric_key)
 	if err != nil {
 		log.Fatalf("%v", err)
 		return nil, err
 	}
+	// fmt.Println()
+	// fmt.Println("expected y", missingClientPiece.Y)
+	// fmt.Println("actual y", decrypted_y)
+	// fmt.Println()
 	res_d_j_i := [][]byte{}
 	for i := 0; i < len(database.Entries); i++ {
 		/// compute while treating the secrete piece as a piece
